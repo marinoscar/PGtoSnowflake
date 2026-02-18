@@ -8,6 +8,7 @@ import {
   saveAwsCredentials,
   createS3Client,
   verifyBucket,
+  createBucket,
   buildS3Key,
   uploadFileToS3,
 } from '../services/aws.service.js';
@@ -98,12 +99,25 @@ export async function runUpload(): Promise<void> {
   startSpinner(`Verifying bucket ${theme.value(bucket)}...`);
   const bucketExists = await verifyBucket(client, bucket);
   if (!bucketExists) {
-    failSpinner(`Bucket "${bucket}" not found or access denied`);
-    logBlank();
-    logWarning('Check that the bucket exists and your credentials have s3:HeadBucket permission.');
-    return;
+    stopSpinner();
+    logWarning(`Bucket "${bucket}" not found.`);
+    const shouldCreate = await promptConfirm(`Bucket "${bucket}" not found. Create it?`, true);
+    if (!shouldCreate) {
+      logInfo('Upload aborted.');
+      return;
+    }
+    startSpinner(`Creating bucket ${theme.value(bucket)}...`);
+    try {
+      await createBucket(client, bucket, creds.region);
+      succeedSpinner(`Bucket "${bucket}" created`);
+    } catch (err) {
+      failSpinner(`Failed to create bucket "${bucket}"`);
+      logError(err instanceof Error ? err.message : 'Unknown error');
+      return;
+    }
+  } else {
+    succeedSpinner(`Bucket "${bucket}" verified`);
   }
-  succeedSpinner(`Bucket "${bucket}" verified`);
   logBlank();
 
   // 6. Prompt for export directory

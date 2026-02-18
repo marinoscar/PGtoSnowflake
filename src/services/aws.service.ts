@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import { createReadStream } from 'node:fs';
-import { S3Client, HeadBucketCommand } from '@aws-sdk/client-s3';
+import { S3Client, HeadBucketCommand, CreateBucketCommand, type BucketLocationConstraint } from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
 import type { SavedAwsCredentials, AwsCredentials, S3UploadResult } from '../types/aws.js';
 import { encrypt, decrypt } from './encryption.service.js';
@@ -74,6 +74,14 @@ export async function verifyBucket(client: S3Client, bucket: string): Promise<bo
   } catch {
     return false;
   }
+}
+
+export async function createBucket(client: S3Client, bucket: string, region: string): Promise<void> {
+  const params: ConstructorParameters<typeof CreateBucketCommand>[0] = { Bucket: bucket };
+  if (region !== 'us-east-1') {
+    params.CreateBucketConfiguration = { LocationConstraint: region as BucketLocationConstraint };
+  }
+  await client.send(new CreateBucketCommand(params));
 }
 
 export function buildS3Key(prefix: string, fileName: string): string {
