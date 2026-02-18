@@ -50,3 +50,10 @@ export class DDLGenerationError extends PgToSnowflakeError {
     this.name = 'DDLGenerationError';
   }
 }
+
+export class S3UploadError extends PgToSnowflakeError {
+  constructor(message: string, cause?: Error) {
+    super(message, 'S3_UPLOAD_ERROR', cause);
+    this.name = 'S3UploadError';
+  }
+}

@@ -4,14 +4,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-PGtoSnowflake is a tool for importing data from PostgreSQL to Snowflake.
+PGtoSnowflake is a CLI tool for importing data from PostgreSQL to Snowflake. It uses an interactive menu (powered by `@inquirer/prompts` `select`) for all user interaction — no commands to type or remember.
 
 ## Project Status
 
-This is a new project at the foundation stage. No source code or build system has been implemented yet. The `.gitignore` is configured for Node.js/TypeScript development.
+The CLI is implemented with an interactive menu-based interface. Core features include schema mapping, data export via DuckDB, and Snowflake DDL generation.
 
 ## Development Setup
 
-To be defined as the project develops. Expected stack based on gitignore configuration:
-- Node.js/TypeScript
-- npm or yarn package manager
+- Node.js 20+
+- npm package manager
+- `npm install` to install dependencies
+- `npm run build` to compile TypeScript
+- `npm run dev` to run with tsx (no build needed)
+- `npm test` to run tests with vitest

@@ -21,15 +21,7 @@ Only the last 10 log files are kept. Older files are automatically deleted.
 
 ## Verbose Mode
 
-Enable verbose mode for debug-level output in the console:
-
-```bash
-# CLI flag
-pgtosnowflake map --verbose
-
-# REPL command
-pg2sf > verbose on
-```
+Enable verbose mode for debug-level output in the console by selecting **Toggle verbose** from the interactive menu.
 
 ## Common Issues
 
@@ -39,7 +31,7 @@ pg2sf > verbose on
 Configuration not found. Run "init" first.
 ```
 
-Run `pgtosnowflake init` or `init` in the REPL to create the `.pgtosnowflake/` directory.
+Select **Initialize config** from the menu to create the `.pgtosnowflake/` directory.
 
 Config is searched in order:
 1. `./.pgtosnowflake/` (current directory)
@@ -54,7 +46,7 @@ Failed to connect to PostgreSQL at localhost:5432/mydb
 - Verify PostgreSQL is running
 - Check host, port, database name, username, and password
 - Ensure `pg_hba.conf` allows connections from your client IP
-- If using SSL, verify certificates or try with `--ssl`
+- If using SSL, enable SSL when prompted during connection setup
 
 ### Password decryption failed
 
@@ -62,7 +54,7 @@ Failed to connect to PostgreSQL at localhost:5432/mydb
 Failed to decrypt data. Check your encryption key.
 ```
 
-The encryption key in `.pgtosnowflake/key` must match the key used when the mapping was created. If you regenerated the key with `init`, existing mappings cannot be decrypted. You'll need to re-run `map` to create a new mapping with the new key.
+The encryption key in `.pgtosnowflake/key` must match the key used when the mapping was created. If you regenerated the key with init, existing mappings cannot be decrypted. You'll need to re-run the map action to create a new mapping with the new key.
 
 ### DuckDB extension installation issues
 
@@ -79,7 +71,7 @@ Failed to install postgres extension
 
 For very large tables, the export may take a long time. DuckDB processes each table sequentially. There is no built-in timeout, but you can:
 
-- Filter tables with `--tables` to export specific ones
+- Filter tables during export to process specific ones
 - Monitor progress via the spinner or verbose logs
 - Check the output directory for partially written files
 
@@ -89,13 +81,36 @@ For very large tables, the export may take a long time. DuckDB processes each ta
 No mapping files found. Run "map" first to create one.
 ```
 
-Run the `map` command to connect to PostgreSQL and create a mapping. Mapping files are stored in `.pgtosnowflake/mappings/`.
+Select **Map PostgreSQL schema** from the menu to connect to PostgreSQL and create a mapping. Mapping files are stored in `.pgtosnowflake/mappings/`.
 
 ### Permission denied errors
 
 - On Linux/macOS, ensure you have write permissions to the config directory
 - For global config (`~/.pgtosnowflake/`), check home directory permissions
 - For local config (`./.pgtosnowflake/`), check current directory permissions
+
+### Saved connection file errors
+
+```
+Failed to load connection: <name>
+```
+
+- Verify the connection file exists in `.pgtosnowflake/connections/`
+- Ensure the encryption key matches the one used when the connection was saved
+- If the key was regenerated, saved connections must be re-created
+
+### Connection file not found
+
+If the `connections/` directory doesn't exist (older config), it will be created automatically when you first save a connection. You can also re-run **Initialize config** to create the directory.
+
+### ESC key not working
+
+The ESC key sends the `escape` keypress event to go back. If ESC is not responding:
+
+- Ensure your terminal supports keypress events (most modern terminals do)
+- On Windows, use Windows Terminal or PowerShell (not legacy cmd.exe)
+- SSH sessions may intercept ESC — try pressing ESC twice quickly
+- Some terminal multiplexers (tmux, screen) may require ESC prefix configuration
 
 ## Resetting Configuration
 
@@ -109,6 +124,6 @@ rm -rf .pgtosnowflake/
 rm -rf ~/.pgtosnowflake/
 ```
 
-Then run `init` again to set up a new encryption key.
+Then select **Initialize config** from the menu to set up a new encryption key.
 
-**Warning**: Deleting the config directory removes the encryption key. Any existing mapping files will no longer be decryptable.
+**Warning**: Deleting the config directory removes the encryption key. Any existing mapping files and saved connections will no longer be decryptable.
