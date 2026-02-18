@@ -1,0 +1,49 @@
+{
+  "name": "pgtosnowflake",
+  "version": "0.1.0",
+  "description": "CLI tool for migrating PostgreSQL databases to Snowflake",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "pgtosnowflake": "dist/index.js",
+    "pg2sf": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "keywords": [
+    "postgresql",
+    "snowflake",
+    "migration",
+    "etl",
+    "parquet",
+    "duckdb",
+    "cli"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "@duckdb/node-api": "1.4.4-r.1",
+    "@inquirer/prompts": "^7.3.2",
+    "boxen": "^8.0.1",
+    "chalk": "^5.4.1",
+    "cli-table3": "^0.6.5",
+    "commander": "^13.1.0",
+    "figures": "^6.1.0",
+    "ora": "^8.2.0",
+    "pg": "^8.13.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.4",
+    "@types/pg": "^8.11.11",
+    "tsx": "^4.19.3",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.5"
+  }
+}

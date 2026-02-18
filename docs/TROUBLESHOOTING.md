@@ -1,0 +1,114 @@
+# Troubleshooting
+
+## Log Files
+
+Session logs are written to `.pgtosnowflake/logs/`. Each session creates a new log file:
+
+```
+.pgtosnowflake/logs/pgtosnowflake-2026-02-17T12-00-00-000Z.log
+```
+
+Log entries include timestamps, levels, and context:
+
+```
+[2026-02-17T12:00:00.123Z] [INFO] [map] Connected to PostgreSQL at localhost:5432/mydb
+[2026-02-17T12:00:01.456Z] [ERROR] [export] Failed to export public.large_table
+  Error: timeout exceeded
+  Stack: ...
+```
+
+Only the last 10 log files are kept. Older files are automatically deleted.
+
+## Verbose Mode
+
+Enable verbose mode for debug-level output in the console:
+
+```bash
+# CLI flag
+pgtosnowflake map --verbose
+
+# REPL command
+pg2sf > verbose on
+```
+
+## Common Issues
+
+### Configuration not found
+
+```
+Configuration not found. Run "init" first.
+```
+
+Run `pgtosnowflake init` or `init` in the REPL to create the `.pgtosnowflake/` directory.
+
+Config is searched in order:
+1. `./.pgtosnowflake/` (current directory)
+2. `~/.pgtosnowflake/` (home directory)
+
+### PostgreSQL connection refused
+
+```
+Failed to connect to PostgreSQL at localhost:5432/mydb
+```
+
+- Verify PostgreSQL is running
+- Check host, port, database name, username, and password
+- Ensure `pg_hba.conf` allows connections from your client IP
+- If using SSL, verify certificates or try with `--ssl`
+
+### Password decryption failed
+
+```
+Failed to decrypt data. Check your encryption key.
+```
+
+The encryption key in `.pgtosnowflake/key` must match the key used when the mapping was created. If you regenerated the key with `init`, existing mappings cannot be decrypted. You'll need to re-run `map` to create a new mapping with the new key.
+
+### DuckDB extension installation issues
+
+```
+Failed to install postgres extension
+```
+
+- Ensure your system has internet access (DuckDB downloads extensions on first use)
+- Check that `@duckdb/node-api` installed correctly: `npm ls @duckdb/node-api`
+- On Windows, ensure you're using a supported Node.js version (20+)
+- Try deleting `node_modules` and running `npm install` again
+
+### Large table export timeouts
+
+For very large tables, the export may take a long time. DuckDB processes each table sequentially. There is no built-in timeout, but you can:
+
+- Filter tables with `--tables` to export specific ones
+- Monitor progress via the spinner or verbose logs
+- Check the output directory for partially written files
+
+### No mapping files found
+
+```
+No mapping files found. Run "map" first to create one.
+```
+
+Run the `map` command to connect to PostgreSQL and create a mapping. Mapping files are stored in `.pgtosnowflake/mappings/`.
+
+### Permission denied errors
+
+- On Linux/macOS, ensure you have write permissions to the config directory
+- For global config (`~/.pgtosnowflake/`), check home directory permissions
+- For local config (`./.pgtosnowflake/`), check current directory permissions
+
+## Resetting Configuration
+
+To start fresh, delete the config directory:
+
+```bash
+# Local config
+rm -rf .pgtosnowflake/
+
+# Global config
+rm -rf ~/.pgtosnowflake/
+```
+
+Then run `init` again to set up a new encryption key.
+
+**Warning**: Deleting the config directory removes the encryption key. Any existing mapping files will no longer be decryptable.

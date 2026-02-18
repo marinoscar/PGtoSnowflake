@@ -1,0 +1,88 @@
+{
+  "version": 1,
+  "name": "sample-project",
+  "createdAt": "2026-02-17T12:00:00.000Z",
+  "source": {
+    "connection": {
+      "host": "localhost",
+      "port": 5432,
+      "database": "sampledb",
+      "user": "postgres",
+      "password": {
+        "encrypted": true,
+        "algorithm": "aes-256-gcm",
+        "iv": "dGVzdGl2MTIzNDU2Nzg=",
+        "tag": "dGVzdHRhZzEyMzQ1Njc4",
+        "ciphertext": "dGVzdGNpcGhlcnRleHQ="
+      },
+      "ssl": false
+    }
+  },
+  "selectedSchemas": ["public"],
+  "tables": [
+    {
+      "schemaName": "public",
+      "tableName": "users",
+      "columns": [
+        {
+          "schemaName": "public",
+          "tableName": "users",
+          "columnName": "id",
+          "ordinalPosition": 1,
+          "columnDefault": "nextval('users_id_seq'::regclass)",
+          "isNullable": false,
+          "dataType": "integer",
+          "udtName": "int4",
+          "characterMaximumLength": null,
+          "numericPrecision": 32,
+          "numericScale": 0,
+          "isIdentity": false,
+          "identityGeneration": null
+        },
+        {
+          "schemaName": "public",
+          "tableName": "users",
+          "columnName": "name",
+          "ordinalPosition": 2,
+          "columnDefault": null,
+          "isNullable": false,
+          "dataType": "character varying",
+          "udtName": "varchar",
+          "characterMaximumLength": 100,
+          "numericPrecision": null,
+          "numericScale": null,
+          "isIdentity": false,
+          "identityGeneration": null
+        },
+        {
+          "schemaName": "public",
+          "tableName": "users",
+          "columnName": "email",
+          "ordinalPosition": 3,
+          "columnDefault": null,
+          "isNullable": true,
+          "dataType": "character varying",
+          "udtName": "varchar",
+          "characterMaximumLength": 255,
+          "numericPrecision": null,
+          "numericScale": null,
+          "isIdentity": false,
+          "identityGeneration": null
+        }
+      ],
+      "primaryKey": {
+        "schemaName": "public",
+        "tableName": "users",
+        "constraintName": "users_pkey",
+        "columns": ["id"]
+      },
+      "foreignKeys": [],
+      "indexes": [],
+      "sequences": []
+    }
+  ],
+  "exportOptions": {
+    "format": "parquet",
+    "outputDir": "./export"
+  }
+}
