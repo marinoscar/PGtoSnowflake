@@ -2,6 +2,7 @@ import path from 'node:path';
 import { isInitialized } from '../services/config.service.js';
 import { listMappingFiles, loadMappingFile, loadMappingFileByPath } from '../services/mapping.service.js';
 import { generateDDL } from '../services/ddl-generator.service.js';
+import { getAdapter } from '../services/adapter-factory.js';
 import { promptSelect, promptInput, promptConfirm } from '../ui/prompts.js';
 import { startSpinner, succeedSpinner, failSpinner } from '../ui/spinner.js';
 import { logSuccess, logError, logInfo, logStep, logBlank } from '../ui/logger.js';
@@ -52,12 +53,17 @@ export async function runGenerateDDL(options: GenerateDDLCommandOptions = {}): P
     return;
   }
 
-  // 3. Generate DDL
+  // 3. Get engine-specific column mapper
+  const engine = mapping.source.engine ?? 'postgresql';
+  const adapter = await getAdapter(engine);
+  const columnMapper = adapter.mapColumnToSnowflake.bind(adapter);
+
+  // 4. Generate DDL
   startSpinner(`Generating DDL for ${mapping.tables.length} tables...`);
 
   let result;
   try {
-    result = await generateDDL(mapping.tables);
+    result = await generateDDL(mapping.tables, columnMapper);
     succeedSpinner('DDL generated successfully');
   } catch (err) {
     failSpinner('Failed to generate DDL');
@@ -66,14 +72,14 @@ export async function runGenerateDDL(options: GenerateDDLCommandOptions = {}): P
     return;
   }
 
-  // 4. Preview info
+  // 5. Preview info
   logBlank();
   logInfo(`  Schemas: ${theme.value(String(result.schemaCount))}`);
   logInfo(`  Tables:  ${theme.value(String(result.tableCount))}`);
   logInfo(`  Foreign Keys: ${theme.value(String(result.foreignKeyCount))}`);
   logBlank();
 
-  // 5. Output
+  // 6. Output
   if (options.preview) {
     console.log(result.sql);
   } else {

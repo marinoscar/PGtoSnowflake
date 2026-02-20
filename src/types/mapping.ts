@@ -1,5 +1,5 @@
 import type { EncryptedPayload } from './config.js';
-import type { PgTableMetadata } from './postgres.js';
+import type { SourceEngine, SourceTableMetadata } from './source-engine.js';
 
 export interface MappingConnectionInfo {
   host: string;
@@ -8,6 +8,8 @@ export interface MappingConnectionInfo {
   user: string;
   password: EncryptedPayload;
   ssl: boolean;
+  instanceName?: string;            // MSSQL
+  trustServerCertificate?: boolean;  // MSSQL
 }
 
 export interface MappingExportOptions {
@@ -20,9 +22,10 @@ export interface MappingFile {
   name: string;
   createdAt: string;
   source: {
+    engine?: SourceEngine;  // Optional for v1 compat; always written for v2
     connection: MappingConnectionInfo;
   };
   selectedSchemas: string[];
-  tables: PgTableMetadata[];
+  tables: SourceTableMetadata[];
   exportOptions: MappingExportOptions;
 }

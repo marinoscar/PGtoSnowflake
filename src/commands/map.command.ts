@@ -1,10 +1,12 @@
-import type { PgConnectionConfig, PgTable, PgTableMetadata } from '../types/postgres.js';
+import type { SourceConnectionConfig, SourceTableMetadata } from '../types/source-engine.js';
+import type { SourceEngine } from '../types/source-engine.js';
 import type { MappingFile, MappingExportOptions } from '../types/mapping.js';
-import { MAPPING_FILE_VERSION, DEFAULT_PG_PORT, DEFAULT_EXPORT_FORMAT, DEFAULT_OUTPUT_DIR } from '../constants.js';
+import { MAPPING_FILE_VERSION, DEFAULT_EXPORT_FORMAT, DEFAULT_OUTPUT_DIR } from '../constants.js';
 import { isInitialized } from '../services/config.service.js';
 import { encryptPassword, saveMappingFile } from '../services/mapping.service.js';
 import { listConnections, loadConnection, decryptConnectionPassword, saveConnection } from '../services/connection.service.js';
-import * as pgService from '../services/postgres.service.js';
+import { getAdapter, getEngineDisplayName, getDefaultPort, getDefaultUser } from '../services/adapter-factory.js';
+import type { SourceAdapter } from '../services/source-adapter.js';
 import { promptInput, promptPassword, promptConfirm, promptSelect, promptCheckbox } from '../ui/prompts.js';
 import { startSpinner, succeedSpinner, failSpinner } from '../ui/spinner.js';
 import { logSuccess, logError, logWarning, logInfo, logStep, logBlank } from '../ui/logger.js';
@@ -22,7 +24,22 @@ interface MapCommandOptions {
   ssl?: boolean;
 }
 
-async function gatherConnection(options: MapCommandOptions): Promise<PgConnectionConfig> {
+async function selectEngine(): Promise<SourceEngine> {
+  return promptSelect<SourceEngine>(
+    'Source database engine:',
+    [
+      { name: 'PostgreSQL', value: 'postgresql' },
+      { name: 'MySQL', value: 'mysql' },
+      { name: 'SQL Server', value: 'mssql' },
+    ],
+  );
+}
+
+async function gatherConnection(engine: SourceEngine, options: MapCommandOptions): Promise<SourceConnectionConfig> {
+  const displayName = getEngineDisplayName(engine);
+  const defaultPort = getDefaultPort(engine);
+  const defaultUser = getDefaultUser(engine);
+
   // Check for saved connections
   let savedNames: string[] = [];
   try {
@@ -31,6 +48,7 @@ async function gatherConnection(options: MapCommandOptions): Promise<PgConnectio
     // No connections directory yet — that's fine
   }
 
+  // Filter to connections that match the selected engine (or have no engine = old PG connections)
   if (savedNames.length > 0) {
     const connectionChoice = await promptSelect<string>(
       'Connection:',
@@ -47,7 +65,8 @@ async function gatherConnection(options: MapCommandOptions): Promise<PgConnectio
       // Allow overriding the database
       const database = await promptInput('Database name:', saved.database, validateNonEmpty);
 
-      return {
+      const config: SourceConnectionConfig = {
+        engine,
         host: saved.host,
         port: saved.port,
         database,
@@ -55,22 +74,39 @@ async function gatherConnection(options: MapCommandOptions): Promise<PgConnectio
         password: decryptedPassword,
         ssl: saved.ssl,
       };
+
+      // Carry over MSSQL-specific fields
+      if (engine === 'mssql') {
+        if (saved.instanceName) config.instanceName = saved.instanceName;
+        if (saved.trustServerCertificate !== undefined) config.trustServerCertificate = saved.trustServerCertificate;
+      }
+
+      return config;
     }
   }
 
   // New connection flow
-  const host = options.host || await promptInput('PostgreSQL host:', 'localhost', validateHostInput);
-  const portStr = options.port?.toString() || await promptInput('PostgreSQL port:', String(DEFAULT_PG_PORT), validatePortInput);
+  const host = options.host || await promptInput(`${displayName} host:`, 'localhost', validateHostInput);
+  const portStr = options.port?.toString() || await promptInput(`${displayName} port:`, String(defaultPort), validatePortInput);
   const port = parseInt(portStr, 10);
   const database = options.database || await promptInput('Database name:', undefined, validateNonEmpty);
-  const user = options.user || await promptInput('Username:', 'postgres', validateNonEmpty);
+  const user = options.user || await promptInput('Username:', defaultUser, validateNonEmpty);
   const password = options.password || await promptPassword('Password:');
   const ssl = options.ssl ?? await promptConfirm('Use SSL?', false);
 
-  return { host, port, database, user, password, ssl };
+  const config: SourceConnectionConfig = { engine, host, port, database, user, password, ssl };
+
+  // MSSQL-specific prompts
+  if (engine === 'mssql') {
+    const instanceName = await promptInput('Instance name (leave blank for default):', '');
+    if (instanceName) config.instanceName = instanceName;
+    config.trustServerCertificate = await promptConfirm('Trust server certificate?', true);
+  }
+
+  return config;
 }
 
-async function offerSaveConnection(config: PgConnectionConfig): Promise<void> {
+async function offerSaveConnection(config: SourceConnectionConfig): Promise<void> {
   try {
     const shouldSave = await promptConfirm('Save this connection for future use?', false);
     if (shouldSave) {
@@ -92,16 +128,21 @@ export async function runMap(options: MapCommandOptions = {}): Promise<void> {
     return;
   }
 
-  logStep('PostgreSQL Schema Mapping');
+  logStep('Source Schema Mapping');
   logBlank();
 
-  // 2. Gather connection details
-  const config = await gatherConnection(options);
+  // 2. Select engine
+  const engine = await selectEngine();
+  const adapter = await getAdapter(engine);
+  const displayName = getEngineDisplayName(engine);
 
-  // 3. Connect
+  // 3. Gather connection details
+  const config = await gatherConnection(engine, options);
+
+  // 4. Connect
   startSpinner(`Connecting to ${config.host}:${config.port}/${config.database}...`);
   try {
-    await pgService.connect(config);
+    await adapter.connect(config);
     succeedSpinner(`Connected to ${config.host}:${config.port}/${config.database}`);
   } catch (err) {
     failSpinner(`Failed to connect to ${config.host}:${config.port}/${config.database}`);
@@ -109,40 +150,48 @@ export async function runMap(options: MapCommandOptions = {}): Promise<void> {
     return;
   }
 
-  // 3b. Offer to save connection
+  // 4b. Offer to save connection
   await offerSaveConnection(config);
 
   try {
-    // 4. List schemas
-    startSpinner('Fetching schemas...');
-    const schemas = await pgService.getSchemas();
-    succeedSpinner(`Found ${schemas.length} schemas`);
+    // 5. List and select schemas
+    let selectedSchemas: string[];
 
-    if (schemas.length === 0) {
-      logWarning('No user schemas found in this database.');
-      return;
+    if (adapter.supportsSchemas) {
+      startSpinner('Fetching schemas...');
+      const schemas = await adapter.getSchemas();
+      succeedSpinner(`Found ${schemas.length} schemas`);
+
+      if (schemas.length === 0) {
+        logWarning('No user schemas found in this database.');
+        return;
+      }
+
+      selectedSchemas = await promptCheckbox(
+        'Select schemas to include:',
+        schemas.map((s) => ({
+          name: s.schemaName,
+          value: s.schemaName,
+          checked: s.schemaName === 'public' || s.schemaName === 'dbo',
+        })),
+      );
+
+      if (selectedSchemas.length === 0) {
+        logWarning('No schemas selected. Aborting.');
+        return;
+      }
+    } else {
+      // MySQL: database = single schema
+      selectedSchemas = [config.database];
+      logInfo(`Using database ${theme.value(config.database)} as schema`);
     }
 
-    const selectedSchemas = await promptCheckbox(
-      'Select schemas to include:',
-      schemas.map((s) => ({
-        name: s.schemaName,
-        value: s.schemaName,
-        checked: s.schemaName === 'public',
-      })),
-    );
-
-    if (selectedSchemas.length === 0) {
-      logWarning('No schemas selected. Aborting.');
-      return;
-    }
-
-    // 5. List and select tables per schema
-    const allSelectedTables: PgTable[] = [];
+    // 6. List and select tables per schema
+    const allSelectedTables: { schemaName: string; tableName: string }[] = [];
 
     for (const schemaName of selectedSchemas) {
       startSpinner(`Fetching tables for ${schemaName}...`);
-      const tables = await pgService.getTables(schemaName);
+      const tables = await adapter.getTables(schemaName);
       succeedSpinner(`Found ${tables.length} tables in ${schemaName}`);
 
       if (tables.length === 0) {
@@ -169,7 +218,7 @@ export async function runMap(options: MapCommandOptions = {}): Promise<void> {
       return;
     }
 
-    // 6. Introspect tables
+    // 7. Introspect tables
     startSpinner(`Introspecting ${allSelectedTables.length} tables...`);
     const tablesBySchema = new Map<string, string[]>();
     for (const t of allSelectedTables) {
@@ -178,14 +227,14 @@ export async function runMap(options: MapCommandOptions = {}): Promise<void> {
       tablesBySchema.set(t.schemaName, existing);
     }
 
-    const allMetadata: PgTableMetadata[] = [];
+    const allMetadata: SourceTableMetadata[] = [];
     for (const [schemaName, tableNames] of tablesBySchema) {
-      const metadata = await pgService.introspectSchema(schemaName, tableNames);
+      const metadata = await adapter.introspectSchema(schemaName, tableNames);
       allMetadata.push(...metadata);
     }
     succeedSpinner(`Introspected ${allMetadata.length} tables`);
 
-    // 7. Display summary
+    // 8. Display summary
     logBlank();
     const summaryRows = allMetadata.map((t) => [
       t.schemaName,
@@ -196,7 +245,7 @@ export async function runMap(options: MapCommandOptions = {}): Promise<void> {
     ]);
     showSummaryTable(['Schema', 'Table', 'Columns', 'Primary Key', 'FKs'], summaryRows);
 
-    // 8. Mapping name and export format
+    // 9. Mapping name and export format
     const mappingName = await promptInput('Mapping name:', config.database, validateMappingName);
 
     const exportFormat = await promptSelect<'parquet' | 'csv'>(
@@ -214,7 +263,7 @@ export async function runMap(options: MapCommandOptions = {}): Promise<void> {
       outputDir,
     };
 
-    // 9. Encrypt password and save
+    // 10. Encrypt password and save
     startSpinner('Saving mapping file...');
 
     const encryptedPassword = await encryptPassword(config.password);
@@ -224,6 +273,7 @@ export async function runMap(options: MapCommandOptions = {}): Promise<void> {
       name: mappingName,
       createdAt: new Date().toISOString(),
       source: {
+        engine,
         connection: {
           host: config.host,
           port: config.port,
@@ -231,6 +281,8 @@ export async function runMap(options: MapCommandOptions = {}): Promise<void> {
           user: config.user,
           password: encryptedPassword,
           ssl: config.ssl,
+          ...(config.instanceName ? { instanceName: config.instanceName } : {}),
+          ...(config.trustServerCertificate !== undefined ? { trustServerCertificate: config.trustServerCertificate } : {}),
         },
       },
       selectedSchemas,
@@ -245,12 +297,12 @@ export async function runMap(options: MapCommandOptions = {}): Promise<void> {
 
     logBlank();
     logSuccess(`Mapping saved to ${theme.path(filePath)}`);
-    logInfo(`  ${allMetadata.length} tables across ${selectedSchemas.length} schemas`);
+    logInfo(`  ${allMetadata.length} tables across ${selectedSchemas.length} schemas (${displayName})`);
     logBlank();
   } catch (err) {
     await fileLogError('map', 'Mapping failed', err instanceof Error ? err : undefined);
     throw err;
   } finally {
-    await pgService.disconnect();
+    await adapter.disconnect();
   }
 }

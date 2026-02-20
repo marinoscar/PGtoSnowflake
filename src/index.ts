@@ -12,10 +12,10 @@ if (args.includes('--version') || args.includes('-V')) {
 
 if (args.includes('--help') || args.includes('-h')) {
   console.log(`${APP_NAME} v${APP_VERSION} — ${APP_DESCRIPTION}\n`);
-  console.log('Usage: pgtosnowflake\n');
+  console.log('Usage: db2snow\n');
   console.log('Launches an interactive menu to guide you through:');
   console.log('  - Initializing encryption config');
-  console.log('  - Mapping PostgreSQL schemas');
+  console.log('  - Mapping source database schemas (PostgreSQL, MySQL, SQL Server)');
   console.log('  - Exporting data to Parquet/CSV');
   console.log('  - Generating Snowflake DDL\n');
   console.log('Options:');
@@ -26,7 +26,7 @@ if (args.includes('--help') || args.includes('-h')) {
 
 if (args.length > 0) {
   console.error(`Unknown argument: ${args[0]}`);
-  console.error('Run "pgtosnowflake" with no arguments to launch the interactive menu.');
+  console.error('Run "db2snow" with no arguments to launch the interactive menu.');
   process.exit(1);
 }
 

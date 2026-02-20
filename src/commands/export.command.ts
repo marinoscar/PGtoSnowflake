@@ -2,7 +2,7 @@ import path from 'node:path';
 import type { ExportFormat, ExportSummary } from '../types/export.js';
 import { isInitialized } from '../services/config.service.js';
 import { listMappingFiles, loadMappingFile, loadMappingFileByPath, decryptPassword, getConnectionFromMapping } from '../services/mapping.service.js';
-import { exportTables } from '../services/duckdb-export.service.js';
+import { getAdapter } from '../services/adapter-factory.js';
 import { promptSelect, promptCheckbox } from '../ui/prompts.js';
 import { startSpinner, updateSpinner, succeedSpinner, failSpinner } from '../ui/spinner.js';
 import { logSuccess, logError, logWarning, logInfo, logStep, logBlank } from '../ui/logger.js';
@@ -106,9 +106,12 @@ export async function runExport(options: ExportCommandOptions = {}): Promise<voi
     return;
   }
 
-  const pgConfig = getConnectionFromMapping(mapping, decryptedPassword);
+  // 4. Determine engine and get adapter
+  const engine = mapping.source.engine ?? 'postgresql';
+  const adapter = await getAdapter(engine);
+  const sourceConfig = getConnectionFromMapping(mapping, decryptedPassword);
 
-  // 4. Determine tables to export
+  // 5. Determine tables to export
   const allTables = mapping.tables.map((t) => ({
     schemaName: t.schemaName,
     tableName: t.tableName,
@@ -137,7 +140,7 @@ export async function runExport(options: ExportCommandOptions = {}): Promise<voi
     }
   }
 
-  // 5. Determine format
+  // 6. Determine format
   let format: ExportFormat;
   if (options.format) {
     format = options.format;
@@ -153,7 +156,7 @@ export async function runExport(options: ExportCommandOptions = {}): Promise<voi
     );
   }
 
-  // 6. Determine output directory
+  // 7. Determine output directory
   const outputDir = options.outputDir || mapping.exportOptions.outputDir || './export';
 
   logInfo(`Exporting ${tablesToExport.length} tables as ${format.toUpperCase()} to ${theme.path(outputDir)}`);
@@ -161,11 +164,11 @@ export async function runExport(options: ExportCommandOptions = {}): Promise<voi
 
   await fileLogInfo('export', `Starting export: ${tablesToExport.length} tables, format=${format}, outputDir=${outputDir}`);
 
-  // 7. Export
+  // 8. Export via adapter
   startSpinner('Starting export...');
 
-  const results = await exportTables(
-    pgConfig,
+  const results = await adapter.exportTables(
+    sourceConfig,
     tablesToExport,
     format,
     outputDir,
@@ -185,7 +188,7 @@ export async function runExport(options: ExportCommandOptions = {}): Promise<voi
     failSpinner(`All ${errorCount} exports failed`);
   }
 
-  // 8. Summary
+  // 9. Summary
   logBlank();
   const summaryRows = results.map((r) => [
     `${r.schemaName}.${r.tableName}`,

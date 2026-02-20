@@ -1,18 +1,19 @@
 import path from 'node:path';
 import { CONNECTION_FILE_EXTENSION } from '../constants.js';
 import type { SavedConnection } from '../types/connection.js';
-import type { PgConnectionConfig } from '../types/postgres.js';
+import type { SourceConnectionConfig } from '../types/source-engine.js';
 import { encrypt, decrypt } from './encryption.service.js';
 import { resolveConfigPaths, readEncryptionKey } from './config.service.js';
 import { readJsonFile, writeJsonFile, listFiles, ensureDir } from '../utils/file.js';
 
-export async function saveConnection(name: string, config: PgConnectionConfig): Promise<string> {
+export async function saveConnection(name: string, config: SourceConnectionConfig): Promise<string> {
   const paths = await resolveConfigPaths();
   await ensureDir(paths.connectionsDir);
   const key = await readEncryptionKey();
 
   const saved: SavedConnection = {
     name,
+    engine: config.engine,
     host: config.host,
     port: config.port,
     database: config.database,
@@ -21,6 +22,10 @@ export async function saveConnection(name: string, config: PgConnectionConfig): 
     ssl: config.ssl,
     createdAt: new Date().toISOString(),
   };
+
+  // Add MSSQL-specific fields
+  if (config.instanceName) saved.instanceName = config.instanceName;
+  if (config.trustServerCertificate !== undefined) saved.trustServerCertificate = config.trustServerCertificate;
 
   const filePath = path.join(paths.connectionsDir, `${name}${CONNECTION_FILE_EXTENSION}`);
   await writeJsonFile(filePath, saved);
@@ -46,8 +51,9 @@ export async function deleteConnection(name: string): Promise<void> {
   await fs.unlink(filePath);
 }
 
-export function getConnectionConfig(saved: SavedConnection, decryptedPassword: string): PgConnectionConfig {
-  return {
+export function getConnectionConfig(saved: SavedConnection, decryptedPassword: string): SourceConnectionConfig {
+  const config: SourceConnectionConfig = {
+    engine: saved.engine ?? 'postgresql',
     host: saved.host,
     port: saved.port,
     database: saved.database,
@@ -55,6 +61,11 @@ export function getConnectionConfig(saved: SavedConnection, decryptedPassword: s
     password: decryptedPassword,
     ssl: saved.ssl,
   };
+
+  if (saved.instanceName) config.instanceName = saved.instanceName;
+  if (saved.trustServerCertificate !== undefined) config.trustServerCertificate = saved.trustServerCertificate;
+
+  return config;
 }
 
 export async function decryptConnectionPassword(saved: SavedConnection): Promise<string> {

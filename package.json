@@ -1,12 +1,11 @@
 {
-  "name": "pgtosnowflake",
+  "name": "db2snow",
   "version": "0.1.0",
   "description": "CLI tool for migrating PostgreSQL databases to Snowflake",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "pgtosnowflake": "dist/index.js",
-    "pg2sf": "dist/index.js"
+    "db2snow": "dist/index.js"
   },
   "scripts": {
     "build": "tsc",
@@ -38,6 +37,8 @@
     "cli-progress": "^3.12.0",
     "cli-table3": "^0.6.5",
     "figures": "^6.1.0",
+    "mssql": "^12.2.0",
+    "mysql2": "^3.17.3",
     "ora": "^8.2.0",
     "pg": "^8.13.3"
   },
@@ -46,6 +47,7 @@
   },
   "devDependencies": {
     "@types/cli-progress": "^3.11.6",
+    "@types/mssql": "^9.1.9",
     "@types/node": "^22.13.4",
     "@types/pg": "^8.11.11",
     "tsx": "^4.19.3",

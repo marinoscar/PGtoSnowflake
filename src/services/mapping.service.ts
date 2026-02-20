@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { MAPPING_FILE_EXTENSION } from '../constants.js';
 import type { MappingFile } from '../types/mapping.js';
-import type { PgConnectionConfig } from '../types/postgres.js';
+import type { SourceConnectionConfig, SourceEngine } from '../types/source-engine.js';
 import { encrypt, decrypt, isEncryptedPayload } from './encryption.service.js';
 import { resolveConfigPaths, readEncryptionKey } from './config.service.js';
 import { readJsonFile, writeJsonFile, listFiles } from '../utils/file.js';
@@ -54,9 +54,16 @@ export async function decryptPassword(mapping: MappingFile): Promise<string> {
   throw new MappingError('Password field is not properly encrypted');
 }
 
-export function getConnectionFromMapping(mapping: MappingFile, decryptedPassword: string): PgConnectionConfig {
+export function getMappingEngine(mapping: MappingFile): SourceEngine {
+  return mapping.source.engine ?? 'postgresql';
+}
+
+export function getConnectionFromMapping(mapping: MappingFile, decryptedPassword: string): SourceConnectionConfig {
   const conn = mapping.source.connection;
-  return {
+  const engine = mapping.source.engine ?? 'postgresql';
+
+  const config: SourceConnectionConfig = {
+    engine,
     host: conn.host,
     port: conn.port,
     database: conn.database,
@@ -64,4 +71,9 @@ export function getConnectionFromMapping(mapping: MappingFile, decryptedPassword
     password: decryptedPassword,
     ssl: conn.ssl,
   };
+
+  if (conn.instanceName) config.instanceName = conn.instanceName;
+  if (conn.trustServerCertificate !== undefined) config.trustServerCertificate = conn.trustServerCertificate;
+
+  return config;
 }

@@ -19,7 +19,7 @@ function getMenuChoices(): { name: string; value: MenuAction; description: strin
   const verboseState = isVerbose() ? 'ON' : 'OFF';
   return [
     { name: '1. Initialize config', value: 'init', description: 'Set up encryption key and config directory' },
-    { name: '2. Map PostgreSQL schema', value: 'map', description: 'Connect to PostgreSQL and create a schema mapping' },
+    { name: '2. Map source schema', value: 'map', description: 'Connect to a database and create a schema mapping' },
     { name: '3. Export data', value: 'export', description: 'Export table data to Parquet or CSV via DuckDB' },
     { name: '4. Generate Snowflake DDL', value: 'generate-ddl', description: 'Generate Snowflake DDL from a mapping file' },
     { name: '5. Upload to S3', value: 'upload', description: 'Upload exported files to an S3 bucket' },
